@@ -14,12 +14,12 @@ def grade(transcript: str) -> GradingResult:
     Grade the PostgreSQL failover connection pool recovery task.
 
     Scoring criteria (6 subscores, all binary 0.0 or 1.0):
-    1. pgbouncer_config_updated (15%) - Config changed from original stale IP
-    2. pgbouncer_restarted (15%) - PgBouncer pod restarted to clear cached connections
-    3. uses_dns_not_ip (15%) - Config uses DNS name instead of IP address
+    1. pgbouncer_config_updated (10%) - Config changed from original stale IP
+    2. pgbouncer_restarted (10%) - PgBouncer pod restarted to clear cached connections
+    3. uses_dns_not_ip (10%) - Config uses DNS name instead of IP address
     4. database_accessible (25%) - Can connect and query through PgBouncer
     5. data_integrity_verified (20%) - Test data still accessible
-    6. connection_pool_optimized (10%) - Fixed problematic pool settings
+    6. connection_pool_optimized (25%) - Fixed problematic pool settings
 
     Total weights = 100%
 
@@ -64,7 +64,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking config update: {e}")
         subscores["pgbouncer_config_updated"] = 0.0
 
-    weights["pgbouncer_config_updated"] = 0.15
+    weights["pgbouncer_config_updated"] = 0.10
 
     # Check 2: PgBouncer pod restarted (15%)
     try:
@@ -104,7 +104,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pod restart: {e}")
         subscores["pgbouncer_restarted"] = 0.0
 
-    weights["pgbouncer_restarted"] = 0.15
+    weights["pgbouncer_restarted"] = 0.10
 
     # Check 3: Uses DNS name instead of IP address (15%)
     try:
@@ -137,7 +137,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking DNS usage: {e}")
         subscores["uses_dns_not_ip"] = 0.0
 
-    weights["uses_dns_not_ip"] = 0.15
+    weights["uses_dns_not_ip"] = 0.10
 
     # Check 4: Database accessible through PgBouncer (25%)
     try:
@@ -217,7 +217,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool optimization: {e}")
         subscores["connection_pool_optimized"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.10
+    weights["connection_pool_optimized"] = 0.25
 
     # Calculate final score
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
