@@ -24,7 +24,7 @@ prompt: |
 
   Verify the fix by ensuring:
   - Applications can connect to PostgreSQL through PgBouncer
-  - Data is accessible (query the 'bleats' table)
+  - Data is accessible
   - No data loss occurred
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
