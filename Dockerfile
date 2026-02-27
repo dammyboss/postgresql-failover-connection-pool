@@ -1,0 +1,24 @@
+# ==========================================================
+# Stage 1: Download PgBouncer image using skopeo
+# ==========================================================
+FROM quay.io/skopeo/stable:latest AS image-fetcher
+
+WORKDIR /images
+
+# Download PgBouncer image
+RUN skopeo copy \
+    docker://edoburu/pgbouncer:latest \
+    docker-archive:pgbouncer-latest.tar:edoburu/pgbouncer:latest
+
+# ==========================================================
+# Stage 2: Final image with pre-downloaded PgBouncer
+# ==========================================================
+FROM us-central1-docker.pkg.dev/bespokelabs/nebula-devops-registry/nebula-devops:1.0.2
+
+ENV DISPLAY_NUM=1
+ENV COMPUTER_HEIGHT_PX=768
+ENV COMPUTER_WIDTH_PX=1024
+ENV ALLOWED_NAMESPACES="bleater"
+
+# Copy to K3s auto-import directory - K3s will automatically import on startup
+COPY --from=image-fetcher /images/*.tar /var/lib/rancher/k3s/agent/images/

@@ -1,0 +1,35 @@
+id: postgresql-failover-connection-pool
+prompt: |
+  [Context]
+  You are a DevOps engineer working on Bleater, a distributed microservices-based social media platform.
+  Bleater is deployed on Kubernetes (k3s) in the `bleater` namespace. You can check all available namespaces at `/home/ubuntu/.allowed_namespaces`.
+  Information about the application and supporting infrastructure is available at http://gitea.devops.local/root/bleater-app/wiki.
+  Passwords are stored here: http://passwords.devops.local.
+  Your email is set up at devops@nebula.local and can be accessed via http://maddy.devops.local.
+  For team communication, Mattermost is used at http://mattermost.devops.local.
+
+  [Problem]
+  The PostgreSQL database pod crashed and Kubernetes restarted it, but the Bleater services
+  are still unable to connect to the database. The connection pooler (PgBouncer) appears to
+  be holding stale connections to the old pod IP.
+
+  Error logs show:
+  - "connection refused" from bleater-post service
+  - "timeout waiting for connection" from bleater-user service
+  - PgBouncer is running but connections fail
+
+  [Task]
+  Restore database connectivity so that Bleater services can successfully query PostgreSQL.
+  You must identify why connections are failing and fix the connection pool layer.
+
+  Verify the fix by ensuring:
+  - Applications can connect to PostgreSQL through PgBouncer
+  - Data is accessible (query the 'bleats' table)
+  - No data loss occurred
+
+  IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
+  or any other TTY commands.
+
+metadata:
+  category: disaster-recovery
+  difficulty: hard
