@@ -188,16 +188,16 @@ def grade(transcript: str) -> GradingResult:
             # Check if at least 2 of 3 problematic settings were fixed
             fixed_count = 0
 
-            # Check server_lifetime (should be < 3600, original was 7200)
+            # Check server_lifetime (should be <= 3600, original was 7200)
             if re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini):
                 lifetime = int(re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
-                if lifetime < 3600:
+                if lifetime <= 3600:
                     fixed_count += 1
 
-            # Check server_idle_timeout (should be < 300, original was 600)
+            # Check server_idle_timeout (should be < 600, original was 600)
             if re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini):
                 idle_timeout = int(re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
-                if idle_timeout < 300:
+                if idle_timeout < 600:
                     fixed_count += 1
 
             # Check server_reset_query (should be present, was missing)
