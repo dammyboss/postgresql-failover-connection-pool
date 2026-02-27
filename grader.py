@@ -72,13 +72,28 @@ def grade(transcript: str) -> GradingResult:
         if returncode == 0:
             pods = json.loads(stdout_pod)
             if pods["items"]:
-                restart_count = pods["items"][0]["status"]["containerStatuses"][0].get("restartCount", 0)
-                if restart_count > 0:
+                pod = pods["items"][0]
+                restart_count = pod["status"]["containerStatuses"][0].get("restartCount", 0)
+
+                # Check pod age (creation timestamp)
+                from datetime import datetime, timezone
+                creation_time_str = pod["metadata"]["creationTimestamp"]
+                creation_time = datetime.fromisoformat(creation_time_str.replace('Z', '+00:00'))
+                current_time = datetime.now(timezone.utc)
+                pod_age_seconds = (current_time - creation_time).total_seconds()
+
+                # Pod is considered "restarted" if either:
+                # 1. restartCount > 0 (container crashed and restarted inside same pod)
+                # 2. Pod is very young (< 600 seconds = 10 minutes), meaning it was recreated
+                if restart_count > 0 or pod_age_seconds < 600:
                     subscores["pgbouncer_restarted"] = 1.0
-                    print(f"✓ PgBouncer pod restarted ({restart_count} restarts)")
+                    if restart_count > 0:
+                        print(f"✓ PgBouncer pod restarted ({restart_count} restarts)")
+                    else:
+                        print(f"✓ PgBouncer pod recreated (age: {int(pod_age_seconds)}s)")
                 else:
                     subscores["pgbouncer_restarted"] = 0.0
-                    print("✗ PgBouncer pod not restarted (stale connections may remain)")
+                    print(f"✗ PgBouncer pod not restarted (age: {int(pod_age_seconds)}s, restartCount: {restart_count})")
             else:
                 subscores["pgbouncer_restarted"] = 0.0
                 print("✗ PgBouncer pod not found")
