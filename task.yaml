@@ -26,8 +26,6 @@ prompt: |
   - Applications can connect to PostgreSQL through PgBouncer
   - Data is accessible (query the 'bleats' table)
   - No data loss occurred
-  - The fix is resilient to future pod restarts (avoid hardcoding IP addresses)
-  - Connection pool settings are optimized to prevent stale connections
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.
