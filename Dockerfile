@@ -5,10 +5,10 @@ FROM quay.io/skopeo/stable:latest AS image-fetcher
 
 WORKDIR /images
 
-# Download PgBouncer image
+# Download PgBouncer image (pinned version for reproducibility)
 RUN skopeo copy \
-    docker://edoburu/pgbouncer:latest \
-    docker-archive:pgbouncer-latest.tar:edoburu/pgbouncer:latest
+    docker://edoburu/pgbouncer:1.21.0 \
+    docker-archive:pgbouncer-1.21.0.tar:edoburu/pgbouncer:1.21.0
 
 # ==========================================================
 # Stage 2: Final image with pre-downloaded PgBouncer
