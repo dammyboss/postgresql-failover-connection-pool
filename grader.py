@@ -1,6 +1,6 @@
 import subprocess
 import json
-import time
+import re
 from apex_arena._types import GradingResult
 
 def run_kubectl(*args, namespace="bleater", timeout=20):
@@ -13,11 +13,15 @@ def grade(transcript: str) -> GradingResult:
     """
     Grade the PostgreSQL failover connection pool recovery task.
 
-    Scoring criteria:
-    1. Stale connections cleared (30%) - PgBouncer config updated OR pod restarted
-    2. Database accessible (30%) - Can connect and query through PgBouncer
-    3. Correct primary target (20%) - PgBouncer points to valid PostgreSQL instance
-    4. Data integrity (20%) - Test data still accessible
+    Scoring criteria (6 subscores, all binary 0.0 or 1.0):
+    1. pgbouncer_config_updated (15%) - Config changed from original stale IP
+    2. pgbouncer_restarted (15%) - PgBouncer pod restarted to clear cached connections
+    3. uses_dns_not_ip (15%) - Config uses DNS name instead of IP address
+    4. database_accessible (25%) - Can connect and query through PgBouncer
+    5. data_integrity_verified (20%) - Test data still accessible
+    6. connection_pool_optimized (10%) - Fixed problematic pool settings
+
+    Total weights = 100%
 
     Returns a score between 0.0 and 1.0.
     """
@@ -25,52 +29,104 @@ def grade(transcript: str) -> GradingResult:
     weights = {}
     namespace = "bleater"
 
-    # Check 1: Stale connections cleared from PgBouncer (30%)
-    # Verify PgBouncer config updated OR pod restarted
+    # Read original PRIMARY_IP stored by setup.sh
+    original_ip = None
     try:
-        # Get PgBouncer ConfigMap
-        stdout, returncode = run_kubectl(
-            "get", "configmap", "pgbouncer-config", "-o", "json"
-        )
+        with open("/tmp/original_primary_ip.txt", "r") as f:
+            original_ip = f.read().strip()
+    except Exception as e:
+        print(f"Warning: Could not read original IP from /tmp/original_primary_ip.txt: {e}")
+
+    # Get current PgBouncer ConfigMap
+    pgbouncer_ini = ""
+    try:
+        stdout, returncode = run_kubectl("get", "configmap", "pgbouncer-config", "-o", "json")
         if returncode == 0:
             cm = json.loads(stdout)
             pgbouncer_ini = cm.get("data", {}).get("pgbouncer.ini", "")
-
-            # Check if PgBouncer was updated to point to a valid PostgreSQL instance
-            # Either the restarted primary (bleater-postgresql-0) or promoted replica (bleater-postgresql-1)
-            # Check for updated host configuration (using DNS names instead of IP)
-            if "bleater-postgresql-0" in pgbouncer_ini or "bleater-postgresql-1" in pgbouncer_ini:
-                # Config uses pod DNS (good - survives IP changes)
-                subscores["stale_connections_cleared"] = 1.0
-                print("✓ PgBouncer config updated with valid PostgreSQL host")
-            else:
-                # Check if PgBouncer pod was restarted (alternative fix method)
-                stdout_pod, _ = run_kubectl("get", "pod", "-l", "app=pgbouncer", "-o", "json")
-                pods = json.loads(stdout_pod)
-                if pods["items"]:
-                    restart_count = pods["items"][0]["status"]["containerStatuses"][0].get("restartCount", 0)
-                    if restart_count > 0:
-                        subscores["stale_connections_cleared"] = 1.0
-                        print(f"✓ PgBouncer pod restarted ({restart_count} restarts)")
-                    else:
-                        subscores["stale_connections_cleared"] = 0.0
-                        print("✗ PgBouncer not restarted and config not updated")
-                else:
-                    subscores["stale_connections_cleared"] = 0.0
-                    print("✗ PgBouncer pod not found")
-        else:
-            subscores["stale_connections_cleared"] = 0.0
-            print("✗ Could not retrieve PgBouncer ConfigMap")
     except Exception as e:
-        print(f"✗ Error checking stale connections: {e}")
-        subscores["stale_connections_cleared"] = 0.0
+        print(f"Error retrieving PgBouncer ConfigMap: {e}")
 
-    weights["stale_connections_cleared"] = 0.30
+    # Check 1: PgBouncer config updated from original IP (15%)
+    try:
+        if original_ip and pgbouncer_ini:
+            # Check if config no longer contains the original stale IP
+            if original_ip not in pgbouncer_ini:
+                subscores["pgbouncer_config_updated"] = 1.0
+                print(f"✓ PgBouncer config updated (original IP {original_ip} removed)")
+            else:
+                subscores["pgbouncer_config_updated"] = 0.0
+                print(f"✗ PgBouncer config still contains stale IP {original_ip}")
+        else:
+            subscores["pgbouncer_config_updated"] = 0.0
+            print("✗ Cannot verify config update (missing original IP or config)")
+    except Exception as e:
+        print(f"✗ Error checking config update: {e}")
+        subscores["pgbouncer_config_updated"] = 0.0
 
-    # Check 2: Database accessible through PgBouncer (30%)
+    weights["pgbouncer_config_updated"] = 0.15
+
+    # Check 2: PgBouncer pod restarted (15%)
+    try:
+        stdout_pod, returncode = run_kubectl("get", "pod", "-l", "app=pgbouncer", "-o", "json")
+        if returncode == 0:
+            pods = json.loads(stdout_pod)
+            if pods["items"]:
+                restart_count = pods["items"][0]["status"]["containerStatuses"][0].get("restartCount", 0)
+                if restart_count > 0:
+                    subscores["pgbouncer_restarted"] = 1.0
+                    print(f"✓ PgBouncer pod restarted ({restart_count} restarts)")
+                else:
+                    subscores["pgbouncer_restarted"] = 0.0
+                    print("✗ PgBouncer pod not restarted (stale connections may remain)")
+            else:
+                subscores["pgbouncer_restarted"] = 0.0
+                print("✗ PgBouncer pod not found")
+        else:
+            subscores["pgbouncer_restarted"] = 0.0
+            print("✗ Could not retrieve PgBouncer pod info")
+    except Exception as e:
+        print(f"✗ Error checking pod restart: {e}")
+        subscores["pgbouncer_restarted"] = 0.0
+
+    weights["pgbouncer_restarted"] = 0.15
+
+    # Check 3: Uses DNS name instead of IP address (15%)
+    try:
+        if pgbouncer_ini:
+            # Check for DNS patterns (pod DNS or service DNS)
+            dns_patterns = [
+                r"bleater-postgresql-0\.bleater-postgresql",
+                r"bleater-postgresql-1\.bleater-postgresql",
+                r"bleater-postgresql\.bleater"
+            ]
+            uses_dns = any(re.search(pattern, pgbouncer_ini) for pattern in dns_patterns)
+
+            # Also check for IP address pattern (to ensure it's NOT using IP)
+            ip_pattern = r"host=\d+\.\d+\.\d+\.\d+"
+            uses_ip = re.search(ip_pattern, pgbouncer_ini) is not None
+
+            if uses_dns and not uses_ip:
+                subscores["uses_dns_not_ip"] = 1.0
+                print("✓ Config uses DNS name (resilient to pod restarts)")
+            else:
+                subscores["uses_dns_not_ip"] = 0.0
+                if uses_ip:
+                    print("✗ Config still uses IP address (will break on next restart)")
+                else:
+                    print("✗ Config does not use proper DNS name")
+        else:
+            subscores["uses_dns_not_ip"] = 0.0
+            print("✗ Cannot verify DNS usage (config not found)")
+    except Exception as e:
+        print(f"✗ Error checking DNS usage: {e}")
+        subscores["uses_dns_not_ip"] = 0.0
+
+    weights["uses_dns_not_ip"] = 0.15
+
+    # Check 4: Database accessible through PgBouncer (25%)
     try:
         # Try to connect and query through PgBouncer
-        # Use any available PostgreSQL pod to execute the query through PgBouncer
         stdout, returncode = run_kubectl(
             "exec", "bleater-postgresql-0", "--",
             "psql", "-U", "bleater", "-d", "bleater", "-h", "pgbouncer.bleater.svc.cluster.local",
@@ -87,29 +143,9 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking database access: {e}")
         subscores["database_accessible"] = 0.0
 
-    weights["database_accessible"] = 0.30
+    weights["database_accessible"] = 0.25
 
-    # Check 3: PgBouncer points to correct primary (20%)
-    try:
-        # Verify PgBouncer config points to a healthy PostgreSQL instance
-        stdout, _ = run_kubectl("get", "configmap", "pgbouncer-config", "-o", "jsonpath={.data.pgbouncer\\.ini}")
-
-        # Check if host is set to a valid pod DNS or service
-        # Valid targets: bleater-postgresql-0, bleater-postgresql-1, or bleater-postgresql service
-        valid_targets = ["bleater-postgresql-0", "bleater-postgresql-1", "bleater-postgresql.bleater"]
-        if any(target in stdout for target in valid_targets):
-            subscores["correct_primary_target"] = 1.0
-            print("✓ PgBouncer configured with valid PostgreSQL target")
-        else:
-            subscores["correct_primary_target"] = 0.0
-            print(f"✗ PgBouncer not pointing to valid target")
-    except Exception as e:
-        print(f"✗ Error checking primary target: {e}")
-        subscores["correct_primary_target"] = 0.0
-
-    weights["correct_primary_target"] = 0.20
-
-    # Check 4: Data integrity - test bleat still accessible (20%)
+    # Check 5: Data integrity - test bleat still accessible (20%)
     try:
         # Query through PgBouncer to verify test data persisted
         stdout, returncode = run_kubectl(
@@ -120,41 +156,65 @@ def grade(transcript: str) -> GradingResult:
         )
         count = stdout.strip()
         if returncode == 0 and "1" in count:
-            subscores["data_integrity"] = 1.0
+            subscores["data_integrity_verified"] = 1.0
             print("✓ Test data accessible through PgBouncer")
         else:
-            subscores["data_integrity"] = 0.0
+            subscores["data_integrity_verified"] = 0.0
             print(f"✗ Cannot access test data (count={count})")
     except Exception as e:
         print(f"✗ Error checking data integrity: {e}")
-        subscores["data_integrity"] = 0.0
+        subscores["data_integrity_verified"] = 0.0
 
-    weights["data_integrity"] = 0.20
+    weights["data_integrity_verified"] = 0.20
+
+    # Check 6: Connection pool settings optimized (10%)
+    try:
+        if pgbouncer_ini:
+            # Check if at least 2 of 3 problematic settings were fixed
+            fixed_count = 0
+
+            # Check server_lifetime (should be < 3600, original was 7200)
+            if re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini):
+                lifetime = int(re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
+                if lifetime < 3600:
+                    fixed_count += 1
+
+            # Check server_idle_timeout (should be < 300, original was 600)
+            if re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini):
+                idle_timeout = int(re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
+                if idle_timeout < 300:
+                    fixed_count += 1
+
+            # Check server_reset_query (should be present, was missing)
+            if "server_reset_query" in pgbouncer_ini:
+                fixed_count += 1
+
+            if fixed_count >= 2:
+                subscores["connection_pool_optimized"] = 1.0
+                print(f"✓ Connection pool settings optimized ({fixed_count}/3 settings fixed)")
+            else:
+                subscores["connection_pool_optimized"] = 0.0
+                print(f"✗ Connection pool settings not optimized ({fixed_count}/3 settings fixed)")
+        else:
+            subscores["connection_pool_optimized"] = 0.0
+            print("✗ Cannot verify pool settings (config not found)")
+    except Exception as e:
+        print(f"✗ Error checking pool optimization: {e}")
+        subscores["connection_pool_optimized"] = 0.0
+
+    weights["connection_pool_optimized"] = 0.10
 
     # Calculate final score
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 
     # Generate feedback
     feedback_lines = []
-    if subscores.get("stale_connections_cleared", 0) >= 1.0:
-        feedback_lines.append("✅ Stale connections cleared")
-    else:
-        feedback_lines.append("❌ PgBouncer still has stale connections")
+    feedback_lines.append(f"Score: {total_score:.3f}\n")
 
-    if subscores.get("database_accessible", 0) >= 1.0:
-        feedback_lines.append("✅ Database accessible through PgBouncer")
-    else:
-        feedback_lines.append("❌ Cannot connect through PgBouncer")
-
-    if subscores.get("correct_primary_target", 0) >= 1.0:
-        feedback_lines.append("✅ PgBouncer configured correctly")
-    else:
-        feedback_lines.append("❌ PgBouncer not pointing to valid target")
-
-    if subscores.get("data_integrity", 0) >= 1.0:
-        feedback_lines.append("✅ Data integrity verified")
-    else:
-        feedback_lines.append("❌ Cannot access test data")
+    for key in subscores:
+        status = "✅" if subscores[key] >= 1.0 else "❌"
+        weight_pct = int(weights[key] * 100)
+        feedback_lines.append(f"{status} {key}: {subscores[key]:.1f} (weight: {weight_pct}%)")
 
     feedback = "\n".join(feedback_lines)
 
@@ -173,7 +233,8 @@ if __name__ == "__main__":
     print(f"\nSubscores:")
     for key, value in result.subscores.items():
         weight_pct = int(result.weights[key] * 100)
-        print(f"  {key}: {value:.3f} (weight: {weight_pct}%)")
+        status = "✅" if value >= 1.0 else "❌"
+        print(f"  {status} {key}: {value:.3f} (weight: {weight_pct}%)")
     print(f"\nFeedback:")
     print(result.feedback)
     print(f"{'='*60}\n")

@@ -157,6 +157,9 @@ echo "Step 3: Deploying PgBouncer connection pooler with broken configuration...
 PRIMARY_IP=$(kubectl get pod bleater-postgresql-0 -n "$NS" -o jsonpath='{.status.podIP}')
 echo "Primary PostgreSQL IP: $PRIMARY_IP"
 
+# Store original IP for grader comparison
+echo "$PRIMARY_IP" > /tmp/original_primary_ip.txt
+
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
