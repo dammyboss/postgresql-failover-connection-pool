@@ -202,7 +202,7 @@ spec:
     spec:
       containers:
       - name: pgbouncer
-        image: edoburu/pgbouncer:latest
+        image: edoburu/pgbouncer:v1.25.1-p0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5432

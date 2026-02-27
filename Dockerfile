@@ -7,8 +7,8 @@ WORKDIR /images
 
 # Download PgBouncer image (pinned version for reproducibility)
 RUN skopeo copy \
-    docker://edoburu/pgbouncer:1.21.0 \
-    docker-archive:pgbouncer-1.21.0.tar:edoburu/pgbouncer:1.21.0
+    docker://edoburu/pgbouncer:v1.25.1-p0 \
+    docker-archive:pgbouncer-v1.25.1-p0.tar:edoburu/pgbouncer:v1.25.1-p0
 
 # ==========================================================
 # Stage 2: Final image with pre-downloaded PgBouncer
