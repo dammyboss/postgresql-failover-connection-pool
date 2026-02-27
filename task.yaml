@@ -24,10 +24,10 @@ prompt: |
 
   Verify the fix by ensuring:
   - Applications can connect to PostgreSQL through PgBouncer
-  - Data is accessible
-  - No data loss occurred
-  - The fix is resilient to future pod restarts
-  - The connection pool is optimized to prevent stale connections
+  - Existing data remains accessible (verify sample queries work)
+  - The fix works even if PostgreSQL pods restart again in the future
+  - Connection pool configuration prevents connections from persisting indefinitely
+  - Connection pool has mechanisms to clean up dead connections
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.
