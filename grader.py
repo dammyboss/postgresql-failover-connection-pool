@@ -76,7 +76,7 @@ def grade(transcript: str) -> GradingResult:
             idle_match = re.search(r"server_idle_timeout\s*=\s*(\d+)", pgbouncer_ini)
             if idle_match:
                 idle_timeout = int(idle_match.group(1))
-                if idle_timeout <= 120:
+                if idle_timeout <= 60:
                     idle_ok = True
 
             if lifetime_ok and idle_ok:
@@ -89,7 +89,7 @@ def grade(transcript: str) -> GradingResult:
                     print(f"✗ server_lifetime not sufficiently reduced (value: {lt_val}s, need ≤3600)")
                 if not idle_ok:
                     it_val = idle_match.group(1) if idle_match else "not set"
-                    print(f"✗ server_idle_timeout not sufficiently reduced (value: {it_val}s, need ≤120)")
+                    print(f"✗ server_idle_timeout not sufficiently reduced (value: {it_val}s, need ≤60)")
         else:
             subscores["pool_timeouts_optimized"] = 0.0
             print("✗ Cannot verify timeout settings (config not found)")
