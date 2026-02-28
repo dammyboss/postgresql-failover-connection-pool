@@ -188,18 +188,18 @@ data:
     # PgBouncer Operational Standards
 
     ## Backend Connection Timeouts
-    server_lifetime must not exceed 3600 seconds. Recommended: 300.
-    server_idle_timeout must not exceed 60 seconds. Recommended: 30.
+    server_lifetime must not exceed 3600 seconds.
+    server_idle_timeout must not exceed 60 seconds.
+    client_idle_timeout must not exceed 300 seconds.
+    server_connect_timeout should not exceed 15 seconds.
 
     ## Backend Targeting
-    Always use the pod-specific headless DNS name for direct primary targeting.
-    Format: <pod>.<statefulset-service>.<namespace>.svc.cluster.local
-    Example: bleater-postgresql-0.bleater-postgresql.bleater.svc.cluster.local
-    Never use IP addresses — they change on pod restart.
+    Always use a DNS-based backend reference, never a raw IP address.
+    IP addresses are ephemeral and change on pod restarts.
 
     ## Connection Cleanup
-    server_reset_query = DISCARD ALL must be set.
-    This ensures connections are cleaned up properly after backend failures.
+    server_fast_close should be enabled to handle abrupt backend disconnections.
+    Monitor pool health via pg_stat_activity after failover events.
 
     ## Auth
     auth_type = trust with a userlist.txt file is the supported auth method.
@@ -215,14 +215,18 @@ data:
     # These settings were used in the original single-pod deployment.
     # They are preserved here for historical reference only.
 
-    # Old host reference (no longer valid after StatefulSet migration):
+    # Old host reference (service DNS — replaced by pod-specific targeting):
     # host=bleater-postgresql.bleater.svc.cluster.local
 
-    # Old timeout values (too aggressive for this workload):
-    # server_lifetime = 120
-    # server_idle_timeout = 10
+    # Old timeout values:
+    # server_lifetime = 1800
+    # server_idle_timeout = 120
+    # client_idle_timeout = 600
 
-    # Old pool mode (caused transaction ordering issues):
+    # Old cleanup config (deprecated syntax — do not use):
+    # server_reset_query = RESET ALL
+
+    # Old pool mode (caused issues with some ORMs):
     # pool_mode = transaction
 EOF
 
