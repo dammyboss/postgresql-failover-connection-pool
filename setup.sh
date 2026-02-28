@@ -197,11 +197,11 @@ data:
     Always use a pod-specific headless DNS name — never a raw IP address or service-level DNS.
     Pod IPs are ephemeral and change on pod restarts.
     Service DNS resolves across all replicas and may route queries to standby pods on failover.
-    Use the headless format: <pod>.<headless-svc>.<namespace>.svc.cluster.local
 
     ## Connection Cleanup
-    server_reset_query must be configured so stale session state is discarded when connections
-    are returned to the pool after a backend failure or restart.
+    When a connection is returned to the pool after a backend failure, the prior session state
+    must not carry over to the next client. Configure PgBouncer to send a reset command to the
+    backend on connection return to discard stale state.
     Monitor pool health via pg_stat_activity after failover events.
 
     ## Auth
