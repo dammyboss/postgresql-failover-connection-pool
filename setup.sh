@@ -194,11 +194,14 @@ data:
     server_connect_timeout should not exceed 15 seconds.
 
     ## Backend Targeting
-    Always use a DNS-based backend reference, never a raw IP address.
-    IP addresses are ephemeral and change on pod restarts.
+    Always use a pod-specific headless DNS name — never a raw IP address or service-level DNS.
+    Pod IPs are ephemeral and change on pod restarts.
+    Service DNS resolves across all replicas and may route queries to standby pods on failover.
+    Use the headless format: <pod>.<headless-svc>.<namespace>.svc.cluster.local
 
     ## Connection Cleanup
-    server_fast_close should be enabled to handle abrupt backend disconnections.
+    server_reset_query must be configured so stale session state is discarded when connections
+    are returned to the pool after a backend failure or restart.
     Monitor pool health via pg_stat_activity after failover events.
 
     ## Auth
@@ -223,7 +226,7 @@ data:
     # server_idle_timeout = 120
     # client_idle_timeout = 600
 
-    # Old cleanup config (deprecated syntax — do not use):
+    # Old cleanup value (RESET ALL is insufficient — use DISCARD ALL instead):
     # server_reset_query = RESET ALL
 
     # Old pool mode (caused issues with some ORMs):
