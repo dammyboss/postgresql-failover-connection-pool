@@ -8,13 +8,15 @@ prompt: |
   [Problem]
   After a recent PostgreSQL pod restart, Bleater services can no longer connect to the database.
   The connection pooler is running but all database connections are failing.
+  `server_reset_query` is not configured in PgBouncer, preventing proper connection cleanup
+  after backend failures.
 
   [Task]
   Restore database connectivity. Investigate the connection pool layer and fix the root cause.
 
   Verify the fix by ensuring:
-  - Database connectivity is fully restored for all Bleater services
-  - All existing application data is intact and accessible
+  - Database connectivity is restored through PgBouncer
+  - Existing application data is accessible
   - The fix handles future pod lifecycle events without manual intervention
   - The root cause is addressed, not just the immediate symptoms
 

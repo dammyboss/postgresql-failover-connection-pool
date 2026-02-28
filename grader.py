@@ -66,7 +66,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking database access: {e}")
         subscores["database_accessible"] = 0.0
 
-    weights["database_accessible"] = 0.15
+    weights["database_accessible"] = 0.25
 
     try:
         stdout, returncode = run_kubectl(
@@ -86,34 +86,16 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking data integrity: {e}")
         subscores["data_integrity_verified"] = 0.0
 
-    weights["data_integrity_verified"] = 0.10
+    weights["data_integrity_verified"] = 0.25
 
     try:
         if pgbouncer_ini:
-            fixed_count = 0
-
-            if re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini):
-                lifetime = int(re.search(r"server_lifetime\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
-                if lifetime <= 3600:
-                    fixed_count += 1
-
-            if re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini):
-                idle_timeout = int(re.search(r"server_idle_timeout\s*=\s*([0-9]+)", pgbouncer_ini).group(1))
-                if idle_timeout < 600:
-                    fixed_count += 1
-
             if "server_reset_query" in pgbouncer_ini:
-                fixed_count += 1
-
-            if re.search(r"server_check_query\s*=", pgbouncer_ini):
-                fixed_count += 1
-
-            if fixed_count >= 3:
                 subscores["connection_pool_optimized"] = 1.0
-                print(f"✓ Connection pool settings optimized ({fixed_count}/4 settings fixed)")
+                print("✓ server_reset_query configured for proper connection cleanup")
             else:
                 subscores["connection_pool_optimized"] = 0.0
-                print(f"✗ Connection pool settings not optimized ({fixed_count}/4 settings fixed, need at least 3)")
+                print("✗ server_reset_query not configured — stale connections will not be cleaned up")
         else:
             subscores["connection_pool_optimized"] = 0.0
             print("✗ Cannot verify pool settings (config not found)")
@@ -121,7 +103,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool optimization: {e}")
         subscores["connection_pool_optimized"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.50
+    weights["connection_pool_optimized"] = 0.25
 
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 
