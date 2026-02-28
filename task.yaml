@@ -8,17 +8,16 @@ prompt: |
   [Problem]
   After a recent PostgreSQL pod restart, Bleater services can no longer connect to the database.
   The connection pooler is running but all database connections are failing.
-  `server_reset_query` is not configured in PgBouncer, preventing proper connection cleanup
-  after backend failures.
 
   [Task]
   Restore database connectivity. Investigate the connection pool layer and fix the root cause.
+  Operational configuration standards for this environment are documented in cluster ConfigMaps — ensure the fix complies with them.
 
   Verify the fix by ensuring:
   - Database connectivity is restored through PgBouncer and existing application data is accessible
-  - Connection pool `server_lifetime` and `server_idle_timeout` values are aggressively reduced to prevent stale backend connections
-  - The fix targets the primary PostgreSQL pod directly using its pod-specific DNS name, surviving future pod restarts automatically
-  - PgBouncer is configured with `server_reset_query` for proper connection cleanup after backend failures
+  - The connection pool backend timeout settings comply with the operational standards documented in the cluster
+  - PgBouncer targets the PostgreSQL backend using a stable reference that remains valid across pod restarts
+  - PgBouncer is configured for proper connection cleanup after backend failures
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.

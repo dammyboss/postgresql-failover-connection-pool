@@ -177,6 +177,55 @@ kubectl wait --for=condition=ready pod -l app=pgbouncer -n "$NS" --timeout=180s 
 
 sleep 15
 
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-operational-runbook
+  namespace: $NS
+data:
+  runbook.md: |
+    # PgBouncer Operational Standards
+
+    ## Backend Connection Timeouts
+    server_lifetime must not exceed 3600 seconds. Recommended: 300.
+    server_idle_timeout must not exceed 60 seconds. Recommended: 30.
+
+    ## Backend Targeting
+    Always use the pod-specific headless DNS name for direct primary targeting.
+    Format: <pod>.<statefulset-service>.<namespace>.svc.cluster.local
+    Example: bleater-postgresql-0.bleater-postgresql.bleater.svc.cluster.local
+    Never use IP addresses — they change on pod restart.
+
+    ## Connection Cleanup
+    server_reset_query = DISCARD ALL must be set.
+    This ensures connections are cleaned up properly after backend failures.
+
+    ## Auth
+    auth_type = trust with a userlist.txt file is the supported auth method.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-legacy-config
+  namespace: $NS
+data:
+  notes.txt: |
+    # Legacy PgBouncer Configuration Notes (OUTDATED — DO NOT USE)
+    # These settings were used in the original single-pod deployment.
+    # They are preserved here for historical reference only.
+
+    # Old host reference (no longer valid after StatefulSet migration):
+    # host=bleater-postgresql.bleater.svc.cluster.local
+
+    # Old timeout values (too aggressive for this workload):
+    # server_lifetime = 120
+    # server_idle_timeout = 10
+
+    # Old pool mode (caused transaction ordering issues):
+    # pool_mode = transaction
+EOF
+
 kubectl delete pod bleater-postgresql-0 -n "$NS" --grace-period=0 --force
 
 sleep 10

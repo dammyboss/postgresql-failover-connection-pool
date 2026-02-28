@@ -77,24 +77,24 @@ def grade(transcript: str) -> GradingResult:
                     idle_ok = True
 
             if lifetime_ok and idle_ok:
-                subscores["pool_timeouts_optimized"] = 1.0
-                print("✓ Both server_lifetime and server_idle_timeout reduced (stale connections minimized)")
+                subscores["pool_timeouts_configured"] = 1.0
+                print("✓ Backend connection timeouts configured within operational limits")
             else:
-                subscores["pool_timeouts_optimized"] = 0.0
+                subscores["pool_timeouts_configured"] = 0.0
                 if not lifetime_ok:
                     lt_val = lifetime_match.group(1) if lifetime_match else "not set"
-                    print(f"✗ server_lifetime not sufficiently reduced (value: {lt_val}s, need ≤3600)")
+                    print(f"✗ server_lifetime exceeds operational limit (value: {lt_val}s, limit: 3600)")
                 if not idle_ok:
                     it_val = idle_match.group(1) if idle_match else "not set"
-                    print(f"✗ server_idle_timeout not sufficiently reduced (value: {it_val}s, need ≤60)")
+                    print(f"✗ server_idle_timeout exceeds operational limit (value: {it_val}s, limit: 60)")
         else:
-            subscores["pool_timeouts_optimized"] = 0.0
+            subscores["pool_timeouts_configured"] = 0.0
             print("✗ Cannot verify timeout settings (config not found)")
     except Exception as e:
         print(f"✗ Error checking pool timeouts: {e}")
-        subscores["pool_timeouts_optimized"] = 0.0
+        subscores["pool_timeouts_configured"] = 0.0
 
-    weights["pool_timeouts_optimized"] = 0.25
+    weights["pool_timeouts_configured"] = 0.25
 
     try:
         if pgbouncer_ini:
@@ -107,39 +107,39 @@ def grade(transcript: str) -> GradingResult:
             uses_ip = re.search(ip_pattern, pgbouncer_ini) is not None
 
             if uses_dns and not uses_ip:
-                subscores["uses_dns_not_ip"] = 1.0
-                print("✓ Config uses DNS name (resilient to pod restarts)")
+                subscores["uses_stable_backend_ref"] = 1.0
+                print("✓ Config uses pod-specific DNS name (resilient to pod restarts)")
             else:
-                subscores["uses_dns_not_ip"] = 0.0
+                subscores["uses_stable_backend_ref"] = 0.0
                 if uses_ip:
-                    print("✗ Config still uses IP address (will break on next restart)")
+                    print("✗ Config uses IP address (will break on pod restart)")
                 else:
-                    print("✗ Config does not use proper DNS name")
+                    print("✗ Config does not use pod-specific DNS name")
         else:
-            subscores["uses_dns_not_ip"] = 0.0
-            print("✗ Cannot verify DNS usage (config not found)")
+            subscores["uses_stable_backend_ref"] = 0.0
+            print("✗ Cannot verify backend reference (config not found)")
     except Exception as e:
-        print(f"✗ Error checking DNS usage: {e}")
-        subscores["uses_dns_not_ip"] = 0.0
+        print(f"✗ Error checking backend reference: {e}")
+        subscores["uses_stable_backend_ref"] = 0.0
 
-    weights["uses_dns_not_ip"] = 0.25
+    weights["uses_stable_backend_ref"] = 0.25
 
     try:
         if pgbouncer_ini:
             if "server_reset_query" in pgbouncer_ini:
-                subscores["connection_pool_optimized"] = 1.0
-                print("✓ server_reset_query configured for proper connection cleanup")
+                subscores["connection_cleanup_configured"] = 1.0
+                print("✓ server_reset_query configured for connection cleanup after backend failures")
             else:
-                subscores["connection_pool_optimized"] = 0.0
-                print("✗ server_reset_query not configured — stale connections will not be cleaned up")
+                subscores["connection_cleanup_configured"] = 0.0
+                print("✗ server_reset_query not configured — connections not cleaned up after failures")
         else:
-            subscores["connection_pool_optimized"] = 0.0
-            print("✗ Cannot verify pool settings (config not found)")
+            subscores["connection_cleanup_configured"] = 0.0
+            print("✗ Cannot verify connection cleanup settings (config not found)")
     except Exception as e:
-        print(f"✗ Error checking pool optimization: {e}")
-        subscores["connection_pool_optimized"] = 0.0
+        print(f"✗ Error checking connection cleanup: {e}")
+        subscores["connection_cleanup_configured"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.25
+    weights["connection_cleanup_configured"] = 0.25
 
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 
