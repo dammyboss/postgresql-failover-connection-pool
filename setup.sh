@@ -195,9 +195,10 @@ data:
 
     ## Backend Targeting
     Pod restarts cause IP reassignment. Backend references that depend on a pod's IP address will lose connectivity after a restart.
+    In a replicated setup, connections must target a specific instance to avoid routing to read-only replicas.
 
     ## Connection Cleanup
-    server_fast_close should be enabled to handle abrupt backend disconnections.
+    After backend failures, stale connection state must be discarded before connections are returned to the pool.
     Monitor pool health via pg_stat_activity after failover events.
 
     ## Auth
