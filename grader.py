@@ -38,10 +38,10 @@ def grade(transcript: str) -> GradingResult:
     # Check 1: Uses DNS name instead of IP address (35%)
     try:
         if pgbouncer_ini:
+            # Only the primary pod FQDN is acceptable — service DNS load-balances
+            # to both pods but only pod-0 is the primary with data
             dns_patterns = [
                 r"bleater-postgresql-0\.bleater-postgresql",
-                r"bleater-postgresql-1\.bleater-postgresql",
-                r"bleater-postgresql\.bleater"
             ]
             uses_dns = any(re.search(pattern, pgbouncer_ini) for pattern in dns_patterns)
 

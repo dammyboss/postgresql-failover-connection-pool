@@ -16,9 +16,7 @@ prompt: |
   - Database connectivity is fully restored for all Bleater services
   - All existing application data is intact and accessible
   - The fix is durable and self-healing — it must not require manual reconfiguration if the PostgreSQL pod is restarted or rescheduled again in the future
-  - The connection pool is tuned so that connections do not persist longer than 1 hour (the current broken configuration holds them for 2 hours)
-  - The connection pool actively cleans up idle connections — idle connections should time out in well under 10 minutes
-  - The connection pool is configured to reset server-side connection state between client sessions
+  - The connection pool configuration is reviewed and tightened to prevent stale connection issues
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.
