@@ -60,29 +60,44 @@ def grade(transcript: str) -> GradingResult:
 
     weights["database_accessible"] = 0.25
 
-    # Check 2: server_lifetime_optimized — server_lifetime reduced from broken 7200s
+    # Check 2: pool_timeouts_optimized — both server_lifetime AND server_idle_timeout reduced
+    # setup.sh sets server_lifetime=7200, server_idle_timeout=600 (both too high)
     try:
         if pgbouncer_ini:
-            match = re.search(r"server_lifetime\s*=\s*(\d+)", pgbouncer_ini)
-            if match:
-                lifetime = int(match.group(1))
-                if lifetime <= 3600:
-                    subscores["server_lifetime_optimized"] = 1.0
-                    print(f"✓ server_lifetime reduced to {lifetime}s (avoids stale connections)")
-                else:
-                    subscores["server_lifetime_optimized"] = 0.0
-                    print(f"✗ server_lifetime still {lifetime}s — stale connections will linger")
-            else:
-                subscores["server_lifetime_optimized"] = 0.0
-                print("✗ server_lifetime not configured explicitly")
-        else:
-            subscores["server_lifetime_optimized"] = 0.0
-            print("✗ Cannot verify server_lifetime (config not found)")
-    except Exception as e:
-        print(f"✗ Error checking server_lifetime: {e}")
-        subscores["server_lifetime_optimized"] = 0.0
+            lifetime_ok = False
+            idle_ok = False
 
-    weights["server_lifetime_optimized"] = 0.25
+            lifetime_match = re.search(r"server_lifetime\s*=\s*(\d+)", pgbouncer_ini)
+            if lifetime_match:
+                lifetime = int(lifetime_match.group(1))
+                if lifetime <= 3600:
+                    lifetime_ok = True
+
+            idle_match = re.search(r"server_idle_timeout\s*=\s*(\d+)", pgbouncer_ini)
+            if idle_match:
+                idle_timeout = int(idle_match.group(1))
+                if idle_timeout <= 120:
+                    idle_ok = True
+
+            if lifetime_ok and idle_ok:
+                subscores["pool_timeouts_optimized"] = 1.0
+                print(f"✓ Both server_lifetime and server_idle_timeout reduced (stale connections minimized)")
+            else:
+                subscores["pool_timeouts_optimized"] = 0.0
+                if not lifetime_ok:
+                    lt_val = lifetime_match.group(1) if lifetime_match else "not set"
+                    print(f"✗ server_lifetime not sufficiently reduced (value: {lt_val}s, need ≤3600)")
+                if not idle_ok:
+                    it_val = idle_match.group(1) if idle_match else "not set"
+                    print(f"✗ server_idle_timeout not sufficiently reduced (value: {it_val}s, need ≤120)")
+        else:
+            subscores["pool_timeouts_optimized"] = 0.0
+            print("✗ Cannot verify timeout settings (config not found)")
+    except Exception as e:
+        print(f"✗ Error checking pool timeouts: {e}")
+        subscores["pool_timeouts_optimized"] = 0.0
+
+    weights["pool_timeouts_optimized"] = 0.25
 
     # Check 3: uses_dns_not_ip — config uses pod DNS name, not hardcoded IP
     try:
