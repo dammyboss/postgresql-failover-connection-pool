@@ -18,7 +18,7 @@ prompt: |
   - Database connectivity is restored through PgBouncer
   - Existing application data is accessible
   - The fix handles future pod lifecycle events without manual intervention
-  - The root cause is addressed, not just the immediate symptoms
+  - PgBouncer is configured with `server_reset_query` for proper connection cleanup after backend failures
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.
