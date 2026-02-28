@@ -16,10 +16,10 @@ def grade(transcript: str) -> GradingResult:
     Scoring criteria (6 subscores, all binary 0.0 or 1.0):
     1. pgbouncer_config_updated (5%) - Config changed from original stale IP
     2. pgbouncer_restarted (5%) - PgBouncer pod restarted to clear cached connections
-    3. uses_dns_not_ip (25%) - Config uses DNS name instead of IP address
-    4. database_accessible (25%) - Can connect and query through PgBouncer
-    5. data_integrity_verified (20%) - Test data still accessible
-    6. connection_pool_optimized (20%) - Fixed problematic pool settings
+    3. uses_dns_not_ip (30%) - Config uses DNS name instead of IP address
+    4. database_accessible (15%) - Can connect and query through PgBouncer
+    5. data_integrity_verified (15%) - Test data still accessible
+    6. connection_pool_optimized (30%) - Fixed ALL problematic pool settings (all 3 required)
 
     Total weights = 100%
 
@@ -47,7 +47,7 @@ def grade(transcript: str) -> GradingResult:
     except Exception as e:
         print(f"Error retrieving PgBouncer ConfigMap: {e}")
 
-    # Check 1: PgBouncer config updated from original IP (15%)
+    # Check 1: PgBouncer config updated from original IP (5%)
     try:
         if original_ip and pgbouncer_ini:
             # Check if config no longer contains the original stale IP
@@ -66,7 +66,7 @@ def grade(transcript: str) -> GradingResult:
 
     weights["pgbouncer_config_updated"] = 0.05
 
-    # Check 2: PgBouncer pod restarted (15%)
+    # Check 2: PgBouncer pod restarted (5%)
     try:
         stdout_pod, returncode = run_kubectl("get", "pod", "-l", "app=pgbouncer", "-o", "json")
         if returncode == 0:
@@ -137,9 +137,9 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking DNS usage: {e}")
         subscores["uses_dns_not_ip"] = 0.0
 
-    weights["uses_dns_not_ip"] = 0.25
+    weights["uses_dns_not_ip"] = 0.30
 
-    # Check 4: Database accessible through PgBouncer (25%)
+    # Check 4: Database accessible through PgBouncer (15%)
     try:
         # Try to connect and query through PgBouncer
         stdout, returncode = run_kubectl(
@@ -158,9 +158,9 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking database access: {e}")
         subscores["database_accessible"] = 0.0
 
-    weights["database_accessible"] = 0.25
+    weights["database_accessible"] = 0.15
 
-    # Check 5: Data integrity - test bleat still accessible (20%)
+    # Check 5: Data integrity - test bleat still accessible (15%)
     try:
         # Query through PgBouncer to verify test data persisted
         stdout, returncode = run_kubectl(
@@ -180,12 +180,12 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking data integrity: {e}")
         subscores["data_integrity_verified"] = 0.0
 
-    weights["data_integrity_verified"] = 0.20
+    weights["data_integrity_verified"] = 0.15
 
-    # Check 6: Connection pool settings optimized (10%)
+    # Check 6: Connection pool settings optimized (30%)
     try:
         if pgbouncer_ini:
-            # Check if at least 2 of 3 problematic settings were fixed
+            # Check if all 3 problematic settings were fixed
             fixed_count = 0
 
             # Check server_lifetime (should be <= 3600, original was 7200)
@@ -204,12 +204,12 @@ def grade(transcript: str) -> GradingResult:
             if "server_reset_query" in pgbouncer_ini:
                 fixed_count += 1
 
-            if fixed_count >= 2:
+            if fixed_count >= 3:
                 subscores["connection_pool_optimized"] = 1.0
-                print(f"✓ Connection pool settings optimized ({fixed_count}/3 settings fixed)")
+                print(f"✓ Connection pool settings fully optimized ({fixed_count}/3 settings fixed)")
             else:
                 subscores["connection_pool_optimized"] = 0.0
-                print(f"✗ Connection pool settings not optimized ({fixed_count}/3 settings fixed)")
+                print(f"✗ Connection pool settings not fully optimized ({fixed_count}/3 settings fixed, need all 3)")
         else:
             subscores["connection_pool_optimized"] = 0.0
             print("✗ Cannot verify pool settings (config not found)")
@@ -217,7 +217,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool optimization: {e}")
         subscores["connection_pool_optimized"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.20
+    weights["connection_pool_optimized"] = 0.30
 
     # Calculate final score
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
