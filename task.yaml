@@ -15,8 +15,8 @@ prompt: |
   Restore database connectivity. Investigate the connection pool layer and fix the root cause.
 
   Verify the fix by ensuring:
-  - Database connectivity is restored through PgBouncer
-  - Existing application data is accessible
+  - Database connectivity is restored through PgBouncer and existing application data is accessible
+  - Connection pool server lifetime is tuned to prevent stale backend connections
   - The fix handles future pod lifecycle events without manual intervention
   - PgBouncer is configured with `server_reset_query` for proper connection cleanup after backend failures
 
