@@ -21,7 +21,6 @@ def grade(transcript: str) -> GradingResult:
     except Exception as e:
         print(f"Error retrieving PgBouncer ConfigMap: {e}")
 
-    # Check 1: database_accessible — connect through PgBouncer AND verify test data exists
     try:
         conn_ok = False
         data_ok = False
@@ -60,8 +59,6 @@ def grade(transcript: str) -> GradingResult:
 
     weights["database_accessible"] = 0.25
 
-    # Check 2: pool_timeouts_optimized — both server_lifetime AND server_idle_timeout reduced
-    # setup.sh sets server_lifetime=7200, server_idle_timeout=600 (both too high)
     try:
         if pgbouncer_ini:
             lifetime_ok = False
@@ -81,7 +78,7 @@ def grade(transcript: str) -> GradingResult:
 
             if lifetime_ok and idle_ok:
                 subscores["pool_timeouts_optimized"] = 1.0
-                print(f"✓ Both server_lifetime and server_idle_timeout reduced (stale connections minimized)")
+                print("✓ Both server_lifetime and server_idle_timeout reduced (stale connections minimized)")
             else:
                 subscores["pool_timeouts_optimized"] = 0.0
                 if not lifetime_ok:
@@ -99,7 +96,6 @@ def grade(transcript: str) -> GradingResult:
 
     weights["pool_timeouts_optimized"] = 0.25
 
-    # Check 3: uses_dns_not_ip — config uses pod DNS name, not hardcoded IP
     try:
         if pgbouncer_ini:
             dns_patterns = [
@@ -128,7 +124,6 @@ def grade(transcript: str) -> GradingResult:
 
     weights["uses_dns_not_ip"] = 0.25
 
-    # Check 4: connection_pool_optimized — server_reset_query configured
     try:
         if pgbouncer_ini:
             if "server_reset_query" in pgbouncer_ini:
