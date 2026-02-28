@@ -194,14 +194,10 @@ data:
     server_connect_timeout should not exceed 15 seconds.
 
     ## Backend Targeting
-    Always use a pod-specific headless DNS name — never a raw IP address or service-level DNS.
-    Pod IPs are ephemeral and change on pod restarts.
-    Service DNS resolves across all replicas and may route queries to standby pods on failover.
+    Pod restarts cause IP reassignment. Backend references that depend on a pod's IP address will lose connectivity after a restart.
 
     ## Connection Cleanup
-    When a connection is returned to the pool after a backend failure, the prior session state
-    must not carry over to the next client. Configure PgBouncer to send a reset command to the
-    backend on connection return to discard stale state.
+    server_fast_close should be enabled to handle abrupt backend disconnections.
     Monitor pool health via pg_stat_activity after failover events.
 
     ## Auth
@@ -226,7 +222,7 @@ data:
     # server_idle_timeout = 120
     # client_idle_timeout = 600
 
-    # Old cleanup value (RESET ALL is insufficient — use DISCARD ALL instead):
+    # Old cleanup config (deprecated syntax — do not use):
     # server_reset_query = RESET ALL
 
     # Old pool mode (caused issues with some ORMs):

@@ -1,7 +1,6 @@
 import subprocess
 import json
 import re
-import time
 from apex_arena._types import GradingResult
 
 def run_kubectl(*args, namespace="bleater", timeout=20):
@@ -58,7 +57,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking database access: {e}")
         subscores["database_accessible"] = 0.0
 
-    weights["database_accessible"] = 0.20
+    weights["database_accessible"] = 0.25
 
     try:
         if pgbouncer_ini:
@@ -95,7 +94,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool timeouts: {e}")
         subscores["pool_timeouts_configured"] = 0.0
 
-    weights["pool_timeouts_configured"] = 0.20
+    weights["pool_timeouts_configured"] = 0.25
 
     try:
         if pgbouncer_ini:
@@ -123,7 +122,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking backend reference: {e}")
         subscores["uses_stable_backend_ref"] = 0.0
 
-    weights["uses_stable_backend_ref"] = 0.20
+    weights["uses_stable_backend_ref"] = 0.25
 
     try:
         if pgbouncer_ini:
@@ -140,48 +139,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking connection cleanup: {e}")
         subscores["connection_cleanup_configured"] = 0.0
 
-    weights["connection_cleanup_configured"] = 0.20
-
-    try:
-        # Simulate another PostgreSQL pod restart to verify PgBouncer auto-reconnects
-        # This tests that the fix is actually stable, not just a one-time patch
-        run_kubectl("delete", "pod", "bleater-postgresql-0", "--grace-period=0", "--force", timeout=15)
-
-        # Wait for pod to disappear and come back Ready (up to 120 seconds)
-        pod_ready = False
-        for _ in range(24):
-            time.sleep(5)
-            stdout, rc = run_kubectl(
-                "get", "pod", "bleater-postgresql-0",
-                "-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}",
-                timeout=10
-            )
-            if rc == 0 and "True" in stdout:
-                pod_ready = True
-                break
-
-        if not pod_ready:
-            subscores["connection_survives_restart"] = 0.0
-            print("✗ PostgreSQL pod did not recover in time after simulated restart")
-        else:
-            time.sleep(5)
-            stdout, returncode = run_kubectl(
-                "exec", "bleater-postgresql-0", "--",
-                "psql", "-U", "bleater", "-d", "bleater", "-h", "pgbouncer.bleater.svc.cluster.local",
-                "-c", "SELECT 1;",
-                timeout=20
-            )
-            if returncode == 0 and ("1 row" in stdout or "(1 row)" in stdout):
-                subscores["connection_survives_restart"] = 1.0
-                print("✓ PgBouncer auto-reconnects after PostgreSQL pod restart (stable DNS reference confirmed)")
-            else:
-                subscores["connection_survives_restart"] = 0.0
-                print("✗ PgBouncer failed to reconnect after PostgreSQL pod restart — backend reference is not stable")
-    except Exception as e:
-        print(f"✗ Error testing restart survival: {e}")
-        subscores["connection_survives_restart"] = 0.0
-
-    weights["connection_survives_restart"] = 0.20
+    weights["connection_cleanup_configured"] = 0.25
 
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 

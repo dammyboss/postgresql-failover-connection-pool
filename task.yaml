@@ -14,10 +14,10 @@ prompt: |
   Operational configuration standards for this environment are documented in cluster ConfigMaps — ensure the fix complies with them.
 
   Verify the fix by ensuring:
-  - Database connectivity is restored through PgBouncer and existing application data is accessible
-  - Idle backend connections are closed promptly and not held longer than the limits in the `pgbouncer-operational-runbook` ConfigMap in the `bleater` namespace
-  - PgBouncer targets the PostgreSQL backend using a stable reference that remains valid across pod restarts
-  - Stale backend connection state is discarded and connections are properly reset after PostgreSQL failures
+  - Bleater services can connect and retrieve data through PgBouncer without errors
+  - Backend connection timeouts comply with the limits documented in the pgbouncer operational runbook ConfigMap
+  - PgBouncer targets the correct primary PostgreSQL instance using a reference that remains valid across pod restarts
+  - Connections to the PostgreSQL backend are properly reset after failures, without retaining stale state
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.
