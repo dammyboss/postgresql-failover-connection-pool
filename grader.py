@@ -106,7 +106,7 @@ def grade(transcript: str) -> GradingResult:
 
     weights["pgbouncer_restarted"] = 0.05
 
-    # Check 3: Uses DNS name instead of IP address (15%)
+    # Check 3: Uses DNS name instead of IP address (30%)
     try:
         if pgbouncer_ini:
             # Check for DNS patterns (pod DNS or service DNS)
