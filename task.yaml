@@ -16,8 +16,8 @@ prompt: |
 
   Verify the fix by ensuring:
   - Database connectivity is restored through PgBouncer and existing application data is accessible
-  - Connection pool server and idle timeout values are tuned to prevent stale backend connections
-  - The fix handles future pod lifecycle events without manual intervention
+  - Connection pool `server_lifetime` and `server_idle_timeout` values are aggressively reduced to prevent stale backend connections
+  - The fix targets the primary PostgreSQL pod directly using its pod-specific DNS name, surviving future pod restarts automatically
   - PgBouncer is configured with `server_reset_query` for proper connection cleanup after backend failures
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
