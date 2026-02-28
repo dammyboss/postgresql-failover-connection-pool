@@ -15,9 +15,9 @@ prompt: |
 
   Verify the fix by ensuring:
   - Database connectivity is restored through PgBouncer and existing application data is accessible
-  - The connection pool backend timeout settings comply with the operational standards documented in the cluster
+  - The connection pool backend timeout settings comply with requirements in the `pgbouncer-operational-runbook` ConfigMap in the `bleater` namespace
   - PgBouncer targets the PostgreSQL backend using a stable reference that remains valid across pod restarts
-  - PgBouncer is configured for proper connection cleanup after backend failures
+  - PgBouncer is configured with `server_reset_query` for proper connection cleanup after backend failures
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.

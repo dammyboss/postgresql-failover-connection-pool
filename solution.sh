@@ -47,17 +47,25 @@ fi
 echo "  Selected target: $TARGET_POD"
 echo ""
 
-# Step 3: Update PgBouncer configuration to point to correct PostgreSQL instance
-echo "Step 3: Updating PgBouncer configuration..."
+# Step 3: Check operational runbook for required configuration standards
+echo "Step 3: Reading operational standards from cluster ConfigMap..."
 echo ""
 
-# Use DNS name instead of IP (survives pod restarts)
-# Format: <pod-name>.<service-name>.<namespace>.svc.cluster.local
+kubectl get configmap pgbouncer-operational-runbook -n "$NS" -o jsonpath='{.data.runbook\.md}' 2>/dev/null && echo "" || echo "  (runbook ConfigMap not found, using known standards)"
+
+echo "  Applying: server_lifetime=300, server_idle_timeout=30, server_reset_query=DISCARD ALL"
+echo ""
+
+echo "Step 4: Updating PgBouncer configuration..."
+echo ""
+
+# Use pod-specific DNS name instead of IP (survives pod restarts)
+# Format: <pod>.<statefulset-service>.<namespace>.svc.cluster.local
 TARGET_HOST="${TARGET_POD}.bleater-postgresql.${NS}.svc.cluster.local"
 
 echo "  Updating PgBouncer config to point to: $TARGET_HOST"
 
-# Create new pgbouncer.ini with corrected settings
+# Create new pgbouncer.ini with corrected settings per operational runbook
 cat > /tmp/pgbouncer.ini <<EOF
 [databases]
 bleater = host=$TARGET_HOST port=5432 dbname=bleater user=bleater
@@ -71,7 +79,7 @@ pool_mode = session
 max_client_conn = 100
 default_pool_size = 20
 server_lifetime = 300
-server_idle_timeout = 60
+server_idle_timeout = 30
 server_reset_query = DISCARD ALL
 EOF
 
@@ -89,8 +97,8 @@ kubectl create configmap pgbouncer-config -n "$NS" \
 echo "✓ PgBouncer config updated"
 echo ""
 
-# Step 4: Restart PgBouncer deployment to clear stale connection pool
-echo "Step 4: Restarting PgBouncer to clear stale connections..."
+# Step 5: Restart PgBouncer deployment to clear stale connection pool
+echo "Step 5: Restarting PgBouncer to clear stale connections..."
 echo ""
 
 # Delete pods to force restart with updated ConfigMap
@@ -103,8 +111,8 @@ kubectl wait --for=condition=ready pod -l app=pgbouncer -n "$NS" --timeout=90s
 echo "✓ PgBouncer restarted with fresh connection pool"
 echo ""
 
-# Step 5: Verify connectivity and data integrity
-echo "Step 5: Verifying the fix..."
+# Step 6: Verify connectivity and data integrity
+echo "Step 6: Verifying the fix..."
 echo ""
 
 echo "Testing basic connectivity through PgBouncer:"
