@@ -15,7 +15,7 @@ prompt: |
   Verify the fix by ensuring:
   - Database connectivity is fully restored for all Bleater services
   - All existing application data is intact and accessible
-  - The fix remains effective without further manual intervention
+  - The fix handles future pod lifecycle events without manual intervention
   - The root cause is addressed, not just the immediate symptoms
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,

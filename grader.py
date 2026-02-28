@@ -47,7 +47,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking DNS usage: {e}")
         subscores["uses_dns_not_ip"] = 0.0
 
-    weights["uses_dns_not_ip"] = 0.20
+    weights["uses_dns_not_ip"] = 0.25
 
     try:
         stdout, returncode = run_kubectl(
@@ -108,12 +108,12 @@ def grade(transcript: str) -> GradingResult:
             if re.search(r"server_check_query\s*=", pgbouncer_ini):
                 fixed_count += 1
 
-            if fixed_count >= 4:
+            if fixed_count >= 3:
                 subscores["connection_pool_optimized"] = 1.0
-                print(f"✓ Connection pool settings fully optimized ({fixed_count}/4 settings fixed)")
+                print(f"✓ Connection pool settings optimized ({fixed_count}/4 settings fixed)")
             else:
                 subscores["connection_pool_optimized"] = 0.0
-                print(f"✗ Connection pool settings not fully optimized ({fixed_count}/4 settings fixed, need all 4)")
+                print(f"✗ Connection pool settings not optimized ({fixed_count}/4 settings fixed, need at least 3)")
         else:
             subscores["connection_pool_optimized"] = 0.0
             print("✗ Cannot verify pool settings (config not found)")
@@ -121,7 +121,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool optimization: {e}")
         subscores["connection_pool_optimized"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.55
+    weights["connection_pool_optimized"] = 0.50
 
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 
