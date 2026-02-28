@@ -15,8 +15,8 @@ prompt: |
   Verify the fix by ensuring:
   - Database connectivity is fully restored for all Bleater services
   - All existing application data is intact and accessible
-  - The fix is durable and self-healing — it must not require manual reconfiguration if the PostgreSQL pod is restarted or rescheduled again in the future
-  - The connection pool configuration is reviewed and tightened to prevent stale connection issues
+  - The fix remains effective without further manual intervention
+  - The root cause is addressed, not just the immediate symptoms
 
   IMPORTANT: Do NOT use any interactive commands, for example `-i` or `-it`, in `docker exec`,
   or any other TTY commands.

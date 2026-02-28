@@ -4,25 +4,11 @@ import re
 from apex_arena._types import GradingResult
 
 def run_kubectl(*args, namespace="bleater", timeout=20):
-    """Execute a kubectl command and return stdout, returncode."""
     cmd = ["kubectl", "-n", namespace] + list(args)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return result.stdout.strip(), result.returncode
 
 def grade(transcript: str) -> GradingResult:
-    """
-    Grade the PostgreSQL failover connection pool recovery task.
-
-    Scoring criteria (4 subscores, all binary 0.0 or 1.0):
-    1. uses_dns_not_ip (35%) - Config uses DNS name instead of IP address
-    2. database_accessible (20%) - Can connect and query through PgBouncer
-    3. data_integrity_verified (15%) - Test data still accessible
-    4. connection_pool_optimized (30%) - Fixed ALL problematic pool settings (all 3 required)
-
-    Total weights = 100%
-
-    Returns a score between 0.0 and 1.0.
-    """
     subscores = {}
     weights = {}
 
@@ -35,11 +21,8 @@ def grade(transcript: str) -> GradingResult:
     except Exception as e:
         print(f"Error retrieving PgBouncer ConfigMap: {e}")
 
-    # Check 1: Uses DNS name instead of IP address (35%)
     try:
         if pgbouncer_ini:
-            # Only the primary pod FQDN is acceptable — service DNS load-balances
-            # to both pods but only pod-0 is the primary with data
             dns_patterns = [
                 r"bleater-postgresql-0\.bleater-postgresql",
             ]
@@ -64,9 +47,8 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking DNS usage: {e}")
         subscores["uses_dns_not_ip"] = 0.0
 
-    weights["uses_dns_not_ip"] = 0.35
+    weights["uses_dns_not_ip"] = 0.20
 
-    # Check 2: Database accessible through PgBouncer (20%)
     try:
         stdout, returncode = run_kubectl(
             "exec", "bleater-postgresql-0", "--",
@@ -84,9 +66,8 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking database access: {e}")
         subscores["database_accessible"] = 0.0
 
-    weights["database_accessible"] = 0.20
+    weights["database_accessible"] = 0.15
 
-    # Check 3: Data integrity - test bleat still accessible (15%)
     try:
         stdout, returncode = run_kubectl(
             "exec", "bleater-postgresql-0", "--",
@@ -105,9 +86,8 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking data integrity: {e}")
         subscores["data_integrity_verified"] = 0.0
 
-    weights["data_integrity_verified"] = 0.15
+    weights["data_integrity_verified"] = 0.10
 
-    # Check 4: Connection pool settings optimized (30%)
     try:
         if pgbouncer_ini:
             fixed_count = 0
@@ -125,12 +105,15 @@ def grade(transcript: str) -> GradingResult:
             if "server_reset_query" in pgbouncer_ini:
                 fixed_count += 1
 
-            if fixed_count >= 3:
+            if re.search(r"server_check_query\s*=", pgbouncer_ini):
+                fixed_count += 1
+
+            if fixed_count >= 4:
                 subscores["connection_pool_optimized"] = 1.0
-                print(f"✓ Connection pool settings fully optimized ({fixed_count}/3 settings fixed)")
+                print(f"✓ Connection pool settings fully optimized ({fixed_count}/4 settings fixed)")
             else:
                 subscores["connection_pool_optimized"] = 0.0
-                print(f"✗ Connection pool settings not fully optimized ({fixed_count}/3 settings fixed, need all 3)")
+                print(f"✗ Connection pool settings not fully optimized ({fixed_count}/4 settings fixed, need all 4)")
         else:
             subscores["connection_pool_optimized"] = 0.0
             print("✗ Cannot verify pool settings (config not found)")
@@ -138,7 +121,7 @@ def grade(transcript: str) -> GradingResult:
         print(f"✗ Error checking pool optimization: {e}")
         subscores["connection_pool_optimized"] = 0.0
 
-    weights["connection_pool_optimized"] = 0.30
+    weights["connection_pool_optimized"] = 0.55
 
     total_score = sum(subscores[k] * weights[k] for k in subscores) / sum(weights.values())
 
